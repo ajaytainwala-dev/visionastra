@@ -1,83 +1,169 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server'
 
-export type ActionType = 'create' | 'read' | 'update' | 'delete';
+export type ActionType = 'create' | 'read' | 'update' | 'delete'
 
-export async function hasPermission(resource: string, action: ActionType): Promise<boolean> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+type Primitive = string | number | boolean | null
 
-  if (!user) return false;
+type ComparisonOp = '==' | '!=' | '>' | '>=' | '<' | '<=' | 'in' | 'contains'
 
-  // We call the Supabase RPC function we created in the migration
-  const { data: hasAccess, error } = await supabase
-    .rpc('has_permission', {
-      p_user_id: user.id,
-      p_resource: resource,
-      p_action: action
-    });
-
-  if (error) {
-    console.error('RBAC Engine Error:', error);
-    return false;
-  }
-
-  return !!hasAccess;
+type ConditionLeaf = {
+  field?: string // e.g. 'user.id' or 'resource.ownerId'
+  op?: ComparisonOp
+  value?: Primitive | string // string may be another field reference
 }
 
-export async function checkAbacAccess(resourceType: string, action: ActionType, resourceContext: any): Promise<boolean> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+type ConditionNode = {
+  and?: Condition[]
+  or?: Condition[]
+}
 
-  if (!user) return false;
+type Condition = ConditionLeaf | ConditionNode
 
-  // 1. First verify basic RBAC permission
-  const hasRbac = await hasPermission(resourceType, action);
-  if (!hasRbac) return false;
+type CanAccessResult = {
+  allowed: boolean
+  reason: string[]
+}
 
-  // 2. Fetch specific role permissions for ABAC conditions evaluation
-  const { data: roleData } = await supabase
+function resolvePath(path: string, ctx: Record<string, unknown>): unknown {
+  // path like 'user.id' or 'resource.ownerId'
+  const parts = path.split('.')
+  let cur: any = ctx
+  for (const p of parts) {
+    if (cur == null) return undefined
+    cur = cur[p]
+  }
+  return cur
+}
+
+function compare(left: unknown, op: ComparisonOp, right: unknown): boolean {
+  if (op === '==') return left == right
+  if (op === '!=') return left != right
+  if (op === '>') return Number(left as any) > Number(right as any)
+  if (op === '>=') return Number(left as any) >= Number(right as any)
+  if (op === '<') return Number(left as any) < Number(right as any)
+  if (op === '<=') return Number(left as any) <= Number(right as any)
+  if (op === 'in') {
+    if (Array.isArray(right)) return (right as any[]).includes(left)
+    return false
+  }
+  if (op === 'contains') {
+    if (typeof left === 'string' && typeof right === 'string') return left.includes(right)
+    if (Array.isArray(left)) return (left as any[]).includes(right)
+    return false
+  }
+  return false
+}
+
+function evaluateCondition(condition: Condition, ctx: Record<string, unknown>): boolean {
+  // Node: and/or
+  if ((condition as ConditionNode).and) {
+    const ch = (condition as ConditionNode).and as Condition[]
+    return ch.every((c) => evaluateCondition(c, ctx))
+  }
+  if ((condition as ConditionNode).or) {
+    const ch = (condition as ConditionNode).or as Condition[]
+    return ch.some((c) => evaluateCondition(c, ctx))
+  }
+
+  // Leaf
+  const leaf = condition as ConditionLeaf
+  if (!leaf.field || !leaf.op) return false
+
+  // left value
+  let left = leaf.field
+  let leftVal: unknown = undefined
+  if (typeof left === 'string' && left.includes('.')) leftVal = resolvePath(left, ctx)
+  else leftVal = left as unknown
+
+  // right value
+  let rightVal: unknown = leaf.value as unknown
+  if (typeof rightVal === 'string' && (rightVal as string).includes('.')) {
+    rightVal = resolvePath(rightVal as string, ctx)
+  }
+
+  return compare(leftVal, leaf.op as ComparisonOp, rightVal)
+}
+
+/**
+ * Centralized permission check combining RBAC + ABAC
+ * - Fetches user roles
+ * - Fetches matching role_permissions
+ * - Evaluates conditions (supports AND / OR and simple comparisons)
+ */
+export async function canAccess(
+  userId: string,
+  action: ActionType,
+  resource: string,
+  resourceContext: Record<string, unknown> = {}
+): Promise<CanAccessResult> {
+  const supabase = await createClient()
+
+  if (!userId) return { allowed: false, reason: ['no-user'] }
+
+  // 1. Load roles for user
+  const { data: userRoles, error: urErr } = await supabase
     .from('user_roles')
-    .select('role_id, roles(is_system)')
-    .eq('user_id', user.id)
-    .single();
+    .select('role_id, roles(name, is_system)')
+    .eq('user_id', userId)
 
-  const isSystem = Array.isArray(roleData?.roles) ? roleData?.roles[0]?.is_system : (roleData?.roles as any)?.is_system;
-  if (isSystem && roleData?.role_id /* is Super Admin */) {
-      // Simplification: assume Super Admin has full access
-      return true;
+  if (urErr) {
+    return { allowed: false, reason: ['failed-to-load-roles', String(urErr.message || urErr)] }
   }
 
-  const { data: permissions } = await supabase
+  const roles = Array.isArray(userRoles) ? userRoles : []
+
+  // 2. Super Admin bypass
+  for (const r of roles) {
+    const roleMeta = (r as any).roles
+    if (roleMeta && roleMeta.name === 'Super Admin') return { allowed: true, reason: ['super-admin'] }
+  }
+
+  const roleIds = roles.map((r: any) => r.role_id) as string[]
+  if (roleIds.length === 0) return { allowed: false, reason: ['no-roles'] }
+
+  // 3. Fetch role_permissions that match resource + action for these roles
+  const { data: permsData, error: permsErr } = await supabase
     .from('role_permissions')
-    .select('conditions')
-    .eq('role_id', roleData?.role_id)
-    .eq('resource', resourceType)
+    .select('id, role_id, resource, action, conditions')
+    .in('role_id', roleIds)
+    .eq('resource', resource)
     .eq('action', action)
-    .single();
 
-  if (!permissions) return false;
-
-  // 3. Evaluate ABAC Context locally (JSON logic)
-  const conditions = permissions.conditions || {};
-  
-  if (Object.keys(conditions).length === 0) {
-    return true; // No special ABAC conditions, pure RBAC allows it
+  if (permsErr) {
+    return { allowed: false, reason: ['failed-to-load-permissions', String(permsErr.message || permsErr)] }
   }
 
-  // Example ABAC evaluation based on the requested examples
-  // user.id == resource.ownerId
-  if (conditions.owner_only === true) {
-    if (resourceContext.ownerId !== user.id) {
-      return false;
+  const perms = Array.isArray(permsData) ? permsData : []
+
+  if (perms.length === 0) return { allowed: false, reason: ['no-matching-permissions'] }
+
+  // 4. Evaluate permissions: if any permission grants access (conditions satisfied or empty), allow
+  const reasons: string[] = []
+
+  // merged context available to condition evaluator
+  const ctx = {
+    user: { id: userId },
+    resource: resourceContext,
+    env: { now: new Date().toISOString() },
+  } as Record<string, unknown>
+
+  for (const p of perms) {
+    const cond = (p as any).conditions as Condition | undefined
+    if (!cond || (typeof cond === 'object' && Object.keys(cond).length === 0)) {
+      reasons.push(`role:${(p as any).role_id} -> allow (no-conditions)`)
+      return { allowed: true, reason: reasons }
+    }
+
+    try {
+      const ok = evaluateCondition(cond as Condition, ctx)
+      reasons.push(`role:${(p as any).role_id} -> ${ok ? 'allowed' : 'denied'} (conditions)`)
+      if (ok) return { allowed: true, reason: reasons }
+    } catch (e) {
+      reasons.push(`role:${(p as any).role_id} -> error evaluating conditions`)
     }
   }
 
-  // score > 90
-  if (conditions.min_score !== undefined) {
-    if (resourceContext.score < conditions.min_score) {
-      return false;
-    }
-  }
-
-  return true;
+  return { allowed: false, reason: reasons }
 }
+
+export { evaluateCondition }
