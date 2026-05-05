@@ -13,25 +13,45 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
   const router = useRouter();
   const supabase = createClient();
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) {
-      setError(error.message);
-      setLoading(false);
+    if (isSignUp) {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: 'Admin User',
+          },
+        },
+      });
+      if (error) {
+        setError(error.message);
+        setLoading(false);
+      } else {
+        setError('Success! Please check your email for verification (if enabled) or try logging in.');
+        setLoading(false);
+      }
     } else {
-      router.push('/');
-      router.refresh();
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        setError(error.message);
+        setLoading(false);
+      } else {
+        router.push('/');
+        router.refresh();
+      }
     }
   };
 
@@ -41,13 +61,17 @@ export default function LoginPage() {
         <CardHeader className="space-y-1 text-center">
           <CardTitle className="text-2xl font-bold tracking-tight">VisionAstraa Access</CardTitle>
           <CardDescription>
-            Enter your credentials to sign in to your account
+            {isSignUp ? 'Create a new account' : 'Enter your credentials to sign in to your account'}
           </CardDescription>
         </CardHeader>
-        <form onSubmit={handleLogin}>
+        <form onSubmit={handleAuth}>
           <CardContent className="space-y-4">
             {error && (
-              <div className="p-3 text-sm text-red-500 bg-red-50 border border-red-200 rounded-md">
+              <div className={`p-3 text-sm rounded-md border ${
+                error.includes('Success') 
+                  ? 'text-green-600 bg-green-50 border-green-200' 
+                  : 'text-red-50 bg-red-50 border-red-200 text-red-500'
+              }`}>
                 {error}
               </div>
             )}
@@ -75,9 +99,17 @@ export default function LoginPage() {
               />
             </div>
           </CardContent>
-          <CardFooter>
+          <CardFooter className="flex flex-col gap-4">
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Signing in...' : 'Sign in'}
+              {loading ? 'Processing...' : (isSignUp ? 'Sign Up' : 'Sign In')}
+            </Button>
+            <Button 
+              type="button" 
+              variant="link" 
+              className="text-xs" 
+              onClick={() => setIsSignUp(!isSignUp)}
+            >
+              {isSignUp ? 'Already have an account? Sign In' : 'Need an account? Sign Up'}
             </Button>
           </CardFooter>
         </form>
