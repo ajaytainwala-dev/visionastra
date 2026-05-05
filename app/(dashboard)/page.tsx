@@ -1,5 +1,7 @@
-'use client';
+'use client'
 
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { 
   Users, 
   BadgeCheck, 
@@ -10,10 +12,73 @@ import {
   CheckCircle2, 
   AlertCircle,
   ArrowUpRight
-} from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+} from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { createClient } from '@/lib/supabase/client'
 
 export default function DashboardHome() {
+  const router = useRouter()
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const redirectIfNeeded = async () => {
+      try {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+
+        if (!user) {
+          router.push('/login')
+          return
+        }
+
+        // Fetch user roles
+        const { data: roles } = await supabase
+          .from('user_roles')
+          .select('role:role_id(name)')
+          .eq('user_id', user.id)
+
+        const roleNames = roles?.map((r: any) => r.role?.name) || []
+
+        // Route based on primary role (priority order)
+        if (roleNames.includes('Super Admin')) {
+          router.push('/admin/dashboard')
+          return
+        } else if (roleNames.includes('Admin')) {
+          router.push('/institution/dashboard')
+          return
+        } else if (roleNames.includes('Trainer')) {
+          router.push('/trainer/dashboard')
+          return
+        } else if (roleNames.includes('Recruiter')) {
+          router.push('/recruiter/dashboard')
+          return
+        } else if (roleNames.includes('Student')) {
+          router.push('/student/dashboard')
+          return
+        }
+
+        // If no role redirect, show overview
+        setLoading(false)
+      } catch (e) {
+        console.error('Failed to redirect:', e)
+        setLoading(false)
+      }
+    }
+
+    redirectIfNeeded()
+  }, [router])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading your dashboard...</p>
+        </div>
+      </div>
+    )
+  }
+
   const stats = [
     {
       title: 'Total Users',
