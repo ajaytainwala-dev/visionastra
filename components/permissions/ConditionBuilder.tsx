@@ -110,7 +110,7 @@ export default function ConditionBuilder({
     return (
       <div key={leaf.id} className="flex items-center gap-2 bg-white p-2 rounded-lg border border-outline-variant">
         <Input value={leaf.field} onChange={(e) => updateLeaf(leaf.id, { field: e.target.value })} className="w-64" />
-        <Select value={leaf.op} onValueChange={(v) => updateLeaf(leaf.id, { op: v })}>
+        <Select value={leaf.op} onValueChange={(v) => updateLeaf(leaf.id, { op: v || undefined })}>
           <SelectTrigger className="h-9 w-28"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="==">==</SelectItem>
