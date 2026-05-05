@@ -41,7 +41,8 @@ export async function checkAbacAccess(resourceType: string, action: ActionType, 
     .eq('user_id', user.id)
     .single();
 
-  if (roleData?.roles?.is_system && roleData?.role_id /* is Super Admin */) {
+  const isSystem = Array.isArray(roleData?.roles) ? roleData?.roles[0]?.is_system : (roleData?.roles as any)?.is_system;
+  if (isSystem && roleData?.role_id /* is Super Admin */) {
       // Simplification: assume Super Admin has full access
       return true;
   }
