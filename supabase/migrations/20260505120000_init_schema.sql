@@ -1,8 +1,12 @@
 -- Create enum for actions
-CREATE TYPE action_type AS ENUM ('create', 'read', 'update', 'delete');
+DO $$ BEGIN
+    CREATE TYPE action_type AS ENUM ('create', 'read', 'update', 'delete');
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
 
 -- 1. Roles Table
-CREATE TABLE public.roles (
+CREATE TABLE IF NOT EXISTS public.roles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT NOT NULL UNIQUE,
     description TEXT,
@@ -11,7 +15,7 @@ CREATE TABLE public.roles (
 );
 
 -- 2. User Roles Table
-CREATE TABLE public.user_roles (
+CREATE TABLE IF NOT EXISTS public.user_roles (
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
     role_id UUID REFERENCES public.roles(id) ON DELETE CASCADE,
     assigned_at TIMESTAMPTZ DEFAULT NOW(),
@@ -19,7 +23,7 @@ CREATE TABLE public.user_roles (
 );
 
 -- 3. Role Permissions (RBAC + ABAC Conditions)
-CREATE TABLE public.role_permissions (
+CREATE TABLE IF NOT EXISTS public.role_permissions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     role_id UUID REFERENCES public.roles(id) ON DELETE CASCADE,
     resource TEXT NOT NULL,
@@ -30,7 +34,7 @@ CREATE TABLE public.role_permissions (
 );
 
 -- 4. Audit Logs Table
-CREATE TABLE public.audit_logs (
+CREATE TABLE IF NOT EXISTS public.audit_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
     action TEXT NOT NULL,
@@ -43,7 +47,7 @@ CREATE TABLE public.audit_logs (
 );
 
 -- 5. Courses Table (Demo Resource)
-CREATE TABLE public.courses (
+CREATE TABLE IF NOT EXISTS public.courses (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     title TEXT NOT NULL,
     description TEXT,
@@ -53,7 +57,7 @@ CREATE TABLE public.courses (
 );
 
 -- 6. Assignments Table (Demo Resource)
-CREATE TABLE public.assignments (
+CREATE TABLE IF NOT EXISTS public.assignments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     course_id UUID REFERENCES public.courses(id) ON DELETE CASCADE,
     title TEXT NOT NULL,
@@ -95,44 +99,55 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- ==========================================
 
 -- Roles: Anyone can read, only Super Admin can write
+DROP POLICY IF EXISTS "Anyone can read roles" ON public.roles;
 CREATE POLICY "Anyone can read roles" ON public.roles FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Only Super Admins can insert roles" ON public.roles;
 CREATE POLICY "Only Super Admins can insert roles" ON public.roles FOR INSERT 
 WITH CHECK (public.has_permission(auth.uid(), 'roles', 'create'));
+DROP POLICY IF EXISTS "Only Super Admins can update roles" ON public.roles;
 CREATE POLICY "Only Super Admins can update roles" ON public.roles FOR UPDATE 
 USING (public.has_permission(auth.uid(), 'roles', 'update'));
+DROP POLICY IF EXISTS "Only Super Admins can delete roles" ON public.roles;
 CREATE POLICY "Only Super Admins can delete roles" ON public.roles FOR DELETE 
 USING (public.has_permission(auth.uid(), 'roles', 'delete'));
 
 -- User Roles: Users can read their own, Admins can manage all
+DROP POLICY IF EXISTS "Users can read own roles" ON public.user_roles;
 CREATE POLICY "Users can read own roles" ON public.user_roles FOR SELECT 
 USING (user_id = auth.uid() OR public.has_permission(auth.uid(), 'users', 'read'));
+DROP POLICY IF EXISTS "Admins can manage user roles" ON public.user_roles;
 CREATE POLICY "Admins can manage user roles" ON public.user_roles FOR ALL 
 USING (public.has_permission(auth.uid(), 'users', 'update'));
 
 -- Role Permissions: Read-only for most, write for Super Admin
+DROP POLICY IF EXISTS "Anyone can read role permissions" ON public.role_permissions;
 CREATE POLICY "Anyone can read role permissions" ON public.role_permissions FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Admins can manage role permissions" ON public.role_permissions;
 CREATE POLICY "Admins can manage role permissions" ON public.role_permissions FOR ALL 
 USING (public.has_permission(auth.uid(), 'permissions', 'update'));
 
 -- Courses Policy (Includes ABAC check)
--- ABAC Example: Can read if course is public OR user has read permission
+DROP POLICY IF EXISTS "Can read courses" ON public.courses;
 CREATE POLICY "Can read courses" ON public.courses FOR SELECT 
 USING (is_public = true OR public.has_permission(auth.uid(), 'courses', 'read'));
 
--- ABAC Example: Can update only if user is the instructor OR user is Super Admin
+DROP POLICY IF EXISTS "Can update courses" ON public.courses;
 CREATE POLICY "Can update courses" ON public.courses FOR UPDATE 
 USING (
     instructor_id = auth.uid() 
     OR public.has_permission(auth.uid(), 'courses', 'update')
 );
 
+DROP POLICY IF EXISTS "Can insert courses" ON public.courses;
 CREATE POLICY "Can insert courses" ON public.courses FOR INSERT 
 WITH CHECK (public.has_permission(auth.uid(), 'courses', 'create'));
 
+DROP POLICY IF EXISTS "Can delete courses" ON public.courses;
 CREATE POLICY "Can delete courses" ON public.courses FOR DELETE 
 USING (public.has_permission(auth.uid(), 'courses', 'delete'));
 
 -- Assignments Policy
+DROP POLICY IF EXISTS "Can read assignments if can read course" ON public.assignments;
 CREATE POLICY "Can read assignments if can read course" ON public.assignments FOR SELECT
 USING (
     EXISTS (
@@ -141,6 +156,7 @@ USING (
     )
 );
 
+DROP POLICY IF EXISTS "Can manage assignments if instructor or admin" ON public.assignments;
 CREATE POLICY "Can manage assignments if instructor or admin" ON public.assignments FOR ALL
 USING (
     EXISTS (
