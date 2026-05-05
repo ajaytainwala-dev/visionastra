@@ -1,36 +1,107 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# VisionAstra - Enterprise Learning Management System
 
-## Getting Started
+**A production-ready SaaS LMS platform built with Next.js 14, Supabase, and advanced RBAC+ABAC authorization.**
 
-First, run the development server:
+## Overview
+
+VisionAstra is a comprehensive learning management system designed for enterprises, academies, and educational institutions. It provides role-based access control (RBAC), attribute-based access control (ABAC), multi-tenant support, and real-time collaboration features.
+
+**Key Features:**
+- 🔐 Advanced RBAC + ABAC with permission inheritance
+- 🏢 Multi-tenant architecture with data isolation
+- 📚 Course management with assignments and attendance tracking
+- 👥 Student results, grading, and performance analytics
+- 🔔 Real-time subscriptions for live updates
+- 📊 Role-based dashboards (Admin, Trainer, Student, Recruiter)
+- 🛡️ Row-level security (RLS) enforcement
+- ♻️ Comprehensive audit logging
+- ⚡ Rate limiting and API security
+
+## Quick Start
+
+### Development
 
 ```bash
+# Install dependencies
+npm install
+
+# Setup environment variables
+cp .env.example .env.local
+
+# Start development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Visit http://localhost:3000
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Using Docker
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+# Start with Docker Compose
+docker-compose up -d
 
-## Learn More
+# Services:
+# - App: http://localhost:3000
+# - Supabase Studio: http://localhost:3001
+# - PostgreSQL: localhost:5432
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Architecture
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Component | Technology |
+|-----------|-----------|
+| **Frontend** | Next.js 14, React 18, TailwindCSS |
+| **Backend** | Next.js API Routes, Node.js 18 |
+| **Database** | Supabase (PostgreSQL 15) |
+| **Auth** | Supabase Auth (Email/Password, OAuth) |
+| **State** | Zustand |
+| **Real-time** | Supabase Realtime (WebSocket) |
+| **Testing** | Vitest, Jest |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## User Roles
 
-## Deploy on Vercel
+- **Super Admin** — System-wide access, manage roles, sandbox testing
+- **Admin** — Manage courses, instructors, enrollments
+- **Trainer** — Create courses, mark attendance, grade submissions
+- **Student** — Enroll, submit work, track progress
+- **Recruiter** — View leaderboards, assess skills
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Documentation
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- 📖 [Full Setup Guide](./DEPLOYMENT.md)
+- 🔐 [RBAC/ABAC Documentation](./docs/RBAC.md)
+- 🚀 [Deployment Guide](./DEPLOYMENT.md)
+- 📚 [Feature Overview](./docs/FEATURES.md)
+
+## Development
+
+```bash
+# Run tests
+npm run test:unit
+npm run test:integration
+
+# Check types
+npx tsc --noEmit
+
+# Lint code
+npm run lint
+```
+
+## Deployment
+
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed instructions.
+
+**Quick Deploy (Vercel):**
+```bash
+vercel
+```
+
+## License
+
+MIT - See LICENSE for details
+
+## Support
+
+- 📧 Email: support@visionastra.dev
+- 💬 Discord: [Community](https://discord.gg/visionastra)
+- 📚 Docs: [docs.visionastra.dev](https://docs.visionastra.dev)
