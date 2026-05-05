@@ -1,5 +1,4 @@
-"use client"
-
+'use client'
 import React, { useEffect, useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -90,7 +89,7 @@ export default function AuditLogsList() {
           />
         </div>
         <Select value={filter.resource_type} onValueChange={(v) => {
-          setFilter({ ...filter, resource_type: v })
+          setFilter({ ...filter, resource_type: v || '' })
           setPage(0)
         }}>
           <SelectTrigger>
@@ -105,7 +104,7 @@ export default function AuditLogsList() {
           </SelectContent>
         </Select>
         <Select value={filter.status} onValueChange={(v) => {
-          setFilter({ ...filter, status: v })
+          setFilter({ ...filter, status: v || '' })
           setPage(0)
         }}>
           <SelectTrigger>

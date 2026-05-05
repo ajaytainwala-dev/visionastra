@@ -251,7 +251,7 @@ export default function DebuggerPage() {
                        Principal Context
                        <span className="text-primary cursor-pointer hover:underline normal-case tracking-normal font-bold">Edit JSON</span>
                     </Label>
-                    <Select value={principal} onValueChange={(v: string) => setPrincipal(v)}>
+                    <Select value={principal} onValueChange={(v: string | null) => setPrincipal(v || '')}>
                        <SelectTrigger className="h-11 bg-white border-outline-variant rounded-xl shadow-sm">
                           <div className="flex items-center gap-3">
                              <User className="h-4 w-4 text-outline" />
@@ -267,7 +267,7 @@ export default function DebuggerPage() {
 
                  <div className="space-y-2">
                     <Label className="text-[10px] font-black text-secondary uppercase tracking-widest">Requested Action</Label>
-                    <Select value={actionSel} onValueChange={(v: string) => setActionSel(v)}>
+                    <Select value={actionSel} onValueChange={(v: string | null) => setActionSel(v || '')}>
                        <SelectTrigger className="h-11 bg-white border-outline-variant rounded-xl shadow-sm">
                           <div className="flex items-center gap-3">
                              <Pointer className="h-4 w-4 text-outline" />
@@ -286,7 +286,7 @@ export default function DebuggerPage() {
                        Resource Context
                        <span className="text-primary cursor-pointer hover:underline normal-case tracking-normal font-bold">Edit JSON</span>
                     </Label>
-                    <Select value={resourceSel} onValueChange={(v: string) => setResourceSel(v)}>
+                    <Select value={resourceSel} onValueChange={(v: string | null) => setResourceSel(v || '')}>
                        <SelectTrigger className="h-11 bg-white border-outline-variant rounded-xl shadow-sm">
                           <div className="flex items-center gap-3">
                              <Folder className="h-4 w-4 text-outline" />

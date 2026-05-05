@@ -30,7 +30,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { 
@@ -89,7 +88,7 @@ export default function UserManagementPage() {
         id: u.id,
         name: u.full_name || 'New User',
         email: u.email,
-        role: u.user_roles?.[0]?.roles?.name || 'No Role',
+        role: ((u.user_roles?.[0]?.roles as any)?.[0]?.name || (u.user_roles?.[0]?.roles as any)?.name || 'No Role'),
         status: 'ACTIVE',
         lastActive: 'Now',
         node: 'NODE_04',
@@ -138,12 +137,13 @@ export default function UserManagementPage() {
           </Button>
           
           <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button className="rounded-xl bg-primary hover:bg-primary/90 text-white font-bold px-6 shadow-lg transition-all active:scale-[0.98]">
-                 <UserPlus className="mr-2 h-4 w-4" />
-                 Provision User
-              </Button>
-            </DialogTrigger>
+            <Button
+              onClick={() => setOpen(true)}
+              className="rounded-xl bg-primary hover:bg-primary/90 text-white font-bold px-6 shadow-lg transition-all active:scale-[0.98]"
+            >
+               <UserPlus className="mr-2 h-4 w-4" />
+               Provision User
+            </Button>
             <DialogContent className="sm:max-w-[425px] rounded-2xl border-outline-variant">
               <DialogHeader>
                 <DialogTitle className="text-xl font-black tracking-tight">Provision New Identity</DialogTitle>
@@ -188,7 +188,7 @@ export default function UserManagementPage() {
                   <Label className="text-[10px] font-black uppercase tracking-widest text-secondary">Security Role</Label>
                   <Select 
                     value={formData.roleId} 
-                    onValueChange={val => setFormData({...formData, roleId: val})}
+                    onValueChange={val => setFormData({...formData, roleId: val || ''})}
                     required
                   >
                     <SelectTrigger className="rounded-xl border-outline-variant h-11">
