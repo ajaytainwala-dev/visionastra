@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
-import * as permService from '@/lib/services/permissions'
-import { PermissionCreateSchema, PermissionUpdateSchema } from '@/lib/validation/schemas'
+import * as courseService from '@/lib/services/courses'
+import { CourseCreateSchema, CourseUpdateSchema } from '@/lib/validation/course-schemas'
 import { writeAudit } from '@/lib/audit'
 
 async function callerHas(p_user_id: string, resource: string, action: 'create'|'read'|'update'|'delete') {
@@ -20,18 +20,16 @@ export async function GET(req: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'unauthenticated' }, { status: 401 })
 
-  const allowed = await callerHas(user.id, 'permissions', 'read')
+  const allowed = await callerHas(user.id, 'courses', 'read')
   if (!allowed) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
   try {
     const url = new URL(req.url)
-    const roleId = url.searchParams.get('role_id') || undefined
-    if (roleId && !isValidUUID(roleId)) return NextResponse.json({ error: 'invalid_role_id' }, { status: 400 })
-    const data = await permService.listPermissions(roleId)
-    await writeAudit({ userId: user.id, action: 'permissions.list', resource_type: 'role_permissions', status: 'success' })
+    const instructorId = url.searchParams.get('instructor_id') || undefined
+    if (instructorId && !isValidUUID(instructorId)) return NextResponse.json({ error: 'invalid_instructor_id' }, { status: 400 })
+    const data = await courseService.listCourses(instructorId)
     return NextResponse.json({ data })
   } catch (e: any) {
-    await writeAudit({ userId: user.id, action: 'permissions.list', resource_type: 'role_permissions', status: 'error' })
     return NextResponse.json({ error: 'internal_error' }, { status: 500 })
   }
 }
@@ -41,20 +39,19 @@ export async function POST(req: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'unauthenticated' }, { status: 401 })
 
-  const allowed = await callerHas(user.id, 'permissions', 'create')
+  const allowed = await callerHas(user.id, 'courses', 'create')
   if (!allowed) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
   try {
     const body = await req.json()
-    const parsed = PermissionCreateSchema.parse(body)
-    const created = await permService.createPermission(user.id, parsed)
+    const parsed = CourseCreateSchema.parse(body)
+    const created = await courseService.createCourse(user.id, parsed)
     return NextResponse.json({ data: created })
   } catch (e: any) {
     if (e instanceof z.ZodError) {
-      await writeAudit({ userId: user.id, action: 'permissions.create', resource_type: 'role_permissions', status: 'error', details: { validation_error: true } })
+      await writeAudit({ userId: user.id, action: 'courses.create', resource_type: 'courses', status: 'error', details: { validation_error: true } })
       return NextResponse.json({ error: 'invalid_input' }, { status: 400 })
     }
-    await writeAudit({ userId: user.id, action: 'permissions.create', resource_type: 'role_permissions', status: 'error' })
     return NextResponse.json({ error: 'internal_error' }, { status: 500 })
   }
 }
@@ -64,14 +61,14 @@ export async function PUT(req: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'unauthenticated' }, { status: 401 })
 
-  const allowed = await callerHas(user.id, 'permissions', 'update')
+  const allowed = await callerHas(user.id, 'courses', 'update')
   if (!allowed) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
   try {
     const body = await req.json()
-    const parsed = PermissionUpdateSchema.parse(body)
+    const parsed = CourseUpdateSchema.parse(body)
     if (!isValidUUID(parsed.id)) return NextResponse.json({ error: 'invalid_id' }, { status: 400 })
-    const updated = await permService.updatePermission(user.id, parsed)
+    const updated = await courseService.updateCourse(user.id, parsed)
     return NextResponse.json({ data: updated })
   } catch (e: any) {
     if (e instanceof z.ZodError) return NextResponse.json({ error: 'invalid_input' }, { status: 400 })
@@ -84,16 +81,16 @@ export async function DELETE(req: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'unauthenticated' }, { status: 401 })
 
-  const allowed = await callerHas(user.id, 'permissions', 'delete')
+  const allowed = await callerHas(user.id, 'courses', 'delete')
   if (!allowed) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
   try {
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
     if (!id || !isValidUUID(id)) return NextResponse.json({ error: 'invalid_id' }, { status: 400 })
-    await permService.deletePermission(user.id, id)
+    await courseService.deleteCourse(user.id, id)
     return NextResponse.json({ data: { success: true } })
   } catch (e: any) {
-    return NextResponse.json({ error: e.message || String(e) }, { status: 400 })
+    return NextResponse.json({ error: 'internal_error' }, { status: 500 })
   }
 }
